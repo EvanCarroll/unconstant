@@ -209,7 +209,7 @@ B<Note: this module does I<NOT> stop `use` from hoisting the statement to the to
 		sub baz { BAR }
 	}
 
-	# All of these will change the return of `Foo::baz()`
+	# All of these will change the return of `MyTest::baz()`
 	package main {
 		use constant *MyTest::BAR => 42;
 		use constant "MyTest::BAR" => 42;
