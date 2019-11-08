@@ -1,10 +1,17 @@
 package unconstant;
+use warnings;
+
+use constant ();
+my $constant_import;
+my $installed;
+
+BEGIN { $constant_import = \&constant::import };
 
 use 5.014;
 use strict;
 use warnings;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 our %declared;
 
@@ -22,137 +29,155 @@ my $normal_constant_name = qr/^_?[^\W_0-9]\w*\z/;
 my $tolerable = qr/^[A-Za-z_]\w*\z/;
 my $boolean = qr/^[01]?\z/;
 
-BEGIN { $INC{"constant.pm"} = 'foo' };
-package constant {
-	sub import {
+sub unconstant_import {
+	return if $installed;
+	*constant::import = *constant_import;
+	$installed = 1;
+}
 
-		my $caller = caller();
-		my $package = shift;
-    my $flush_mro;
-		return unless @_;
-		my $multiple  = ref $_[0];
+sub unconstant_unimport {
+	return unless $installed;
+	no warnings 'redefine';
+	*constant::import = $constant_import;
+	$installed = 0;
+}
 
-		my $constants;
-		if ( $multiple ) {
-			if ($multiple ne 'HASH') {
-				require Carp;
-				Carp::croak("Invalid reference type '".ref(shift)."' not 'HASH'");
+sub constant_import {
+
+	my $caller = caller();
+	my $package = shift;
+	my $flush_mro;
+	return unless @_;
+	my $multiple  = ref $_[0];
+
+	my $constants;
+	if ( $multiple ) {
+		if ($multiple ne 'HASH') {
+			require Carp;
+			Carp::croak("Invalid reference type '".ref(shift)."' not 'HASH'");
+		}
+		$constants = shift;
+	}
+	else {
+		unless (defined $_[0]) {
+			require Carp;
+			Carp::croak("Can't use undef as constant name");
+		}
+		$constants->{+shift} = undef;
+	}
+
+
+	my $symtab;
+	{
+		no strict 'refs';
+		$symtab = \%{$caller . "::"};
+	}
+
+	foreach my $name ( keys %$constants ) {
+		my $pkg = $caller;
+		my $symtab = $symtab;
+		my $orig_name = $name;
+
+		if ($name =~ s/(.*)(?:::|')(?=.)//s) {
+			$pkg = $1;
+			if ($pkg ne $caller) {
+				no strict 'refs';
+				$symtab = \%{$pkg . '::'};
 			}
-			$constants = shift;
+		}
+
+		# Normal constant name
+		if ($name =~ $normal_constant_name and !$forbidden{$name}) {
+			# Everything is okay
+		}
+		
+		# Name forced into main, but we're not in main. Fatal.
+		elsif ($forced_into_main{$name} and $pkg ne 'main') {
+			require Carp;
+			Carp::croak("Constant name '$name' is forced into main::");
+		}
+		
+		# Starts with double underscore. Fatal.
+		elsif ($name =~ /^__/) {
+			require Carp;
+			Carp::croak("Constant name '$name' begins with '__'");
+		}
+		
+		# Maybe the name is tolerable
+		elsif ($name =~ $tolerable) {
+			# Then we'll warn only if you've asked for warnings
+			if (warnings::enabled()) {
+				if ($keywords{$name}) {
+					warnings::warn("Constant name '$name' is a Perl keyword");
+				} elsif ($forced_into_main{$name}) {
+					warnings::warn("Constant name '$name' is " .
+					"forced into package main::");
+				}
+			}
+		}
+
+		# Looks like a boolean
+		# use constant FRED == fred;
+		elsif ($name =~ $boolean) {
+			require Carp;
+			if (@_) {
+				Carp::croak("Constant name '$name' is invalid");
+			}
+			else {
+				Carp::croak("Constant name looks like boolean value");
+			}
 		}
 		else {
-			unless (defined $_[0]) {
-				require Carp;
-				Carp::croak("Can't use undef as constant name");
-			}
-			$constants->{+shift} = undef;
+			# Must have bad characters
+			require Carp;
+			Carp::croak("Constant name '$name' has invalid characters");
 		}
 
+		no strict 'refs';
+		my $full_name = "${pkg}::$name";
+		$declared{$full_name}++;
+		if ($multiple || @_ == 1) {
+			my $scalar = $multiple ? $constants->{$orig_name} : $_[0];
 
-		my $symtab;
-		{
-			no strict 'refs';
-			$symtab = \%{$caller . "::"};
+			#$symtab->{$name} = sub () { $scalar };
+			{
+				no warnings;
+				*$full_name = sub { $scalar };
+			}
+			++$flush_mro->{$pkg};
 		}
-
-		foreach my $name ( keys %$constants ) {
-			my $pkg = $caller;
-			my $symtab = $symtab;
-			my $orig_name = $name;
-
-			if ($name =~ s/(.*)(?:::|')(?=.)//s) {
-				$pkg = $1;
-				if ($pkg ne $caller) {
-					no strict 'refs';
-					$symtab = \%{$pkg . '::'};
-				}
-			}
-
-			# Normal constant name
-			if ($name =~ $normal_constant_name and !$forbidden{$name}) {
-				# Everything is okay
-			}
-			
-			# Name forced into main, but we're not in main. Fatal.
-			elsif ($forced_into_main{$name} and $pkg ne 'main') {
-				require Carp;
-				Carp::croak("Constant name '$name' is forced into main::");
-			}
-			
-			# Starts with double underscore. Fatal.
-			elsif ($name =~ /^__/) {
-				require Carp;
-				Carp::croak("Constant name '$name' begins with '__'");
-			}
-			
-			# Maybe the name is tolerable
-			elsif ($name =~ $tolerable) {
-				# Then we'll warn only if you've asked for warnings
-				if (warnings::enabled()) {
-					if ($keywords{$name}) {
-						warnings::warn("Constant name '$name' is a Perl keyword");
-					} elsif ($forced_into_main{$name}) {
-						warnings::warn("Constant name '$name' is " .
-						"forced into package main::");
-					}
-				}
-			}
-
-			# Looks like a boolean
-			# use constant FRED == fred;
-			elsif ($name =~ $boolean) {
-				require Carp;
-				if (@_) {
-					Carp::croak("Constant name '$name' is invalid");
-				}
-				else {
-					Carp::croak("Constant name looks like boolean value");
-				}
+		elsif (@_) {
+			my @list = @_;
+			_make_const($list[$_]) for 0..$#list;
+			_make_const(@list);
+			if (!exists $symtab->{$name}) {
+				$symtab->{$name} = \@list;
+				$flush_mro->{$pkg}++;
 			}
 			else {
-				# Must have bad characters
-				require Carp;
-				Carp::croak("Constant name '$name' has invalid characters");
-			}
-
-			no strict 'refs';
-			my $full_name = "${pkg}::$name";
-			$declared{$full_name}++;
-			if ($multiple || @_ == 1) {
-				my $scalar = $multiple ? $constants->{$orig_name} : $_[0];
-
-				#$symtab->{$name} = sub () { $scalar };
-				{
-					no warnings;
-					*$full_name = sub { $scalar };
-				}
-				++$flush_mro->{$pkg};
-			}
-			elsif (@_) {
-				my @list = @_;
-				_make_const($list[$_]) for 0..$#list;
-				_make_const(@list);
-				if (!exists $symtab->{$name}) {
-					$symtab->{$name} = \@list;
-					$flush_mro->{$pkg}++;
-				}
-				else {
-					local $constant::{_dummy} = \@list;
-					*$full_name = \&{"_dummy"};
-				}
-			}
-			else {
-				die 'foo';
-				#*$full_name = sub { };
-				*$full_name = sub () { };
+				local $constant::{_dummy} = \@list;
+				*$full_name = \&{"_dummy"};
 			}
 		}
-		# Flush the cache exactly once if we make any direct symbol table changes.
-		if ($flush_mro) {
-			mro::method_changed_in($_) for keys %$flush_mro;
+		else {
+			die 'foo';
+			#*$full_name = sub { };
+			*$full_name = sub () { };
 		}
 	}
+	# Flush the cache exactly once if we make any direct symbol table changes.
+	if ($flush_mro) {
+		mro::method_changed_in($_) for keys %$flush_mro;
+	}
 }
+
+
+{
+	no warnings;
+	*import   = \&unconstant_import;
+	*unimport = \&unconstant_unimport;
+}
+
 
 1;
 
