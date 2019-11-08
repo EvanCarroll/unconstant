@@ -22,6 +22,16 @@ my %WriteMakefileArgs = (
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES => 'unconstant-*' },
+		META_MERGE        => {
+			"meta-spec" => { version => 2 },
+			resources => {
+				repository => {
+						type => 'git',
+						url => 'https://github.com/EvanCarroll/unconstant.git',
+						web => 'https://github.com/EvanCarroll/unconstant',
+				},
+			},
+		},
 );
 
 # Compatibility with old versions of ExtUtils::MakeMaker
