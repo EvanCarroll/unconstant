@@ -1,4 +1,5 @@
 Makefile
+MANIFEST*
 Makefile.old
 Build
 Build.bat
