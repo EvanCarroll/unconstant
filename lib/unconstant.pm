@@ -147,7 +147,7 @@ sub constant_import {
 			#$symtab->{$name} = sub () { $scalar };
 			{
 				no warnings;
-				*$full_name = Sub::Util::set_subname("constant::$name", sub { $scalar } );
+				*$full_name = Sub::Util::set_prototype( '', Sub::Util::set_subname("constant::$name", sub { $scalar } ) );
 			}
 			++$flush_mro->{$pkg};
 		}
@@ -155,7 +155,7 @@ sub constant_import {
 			my @list = @_;
 			{
 				no warnings;
-				*$full_name = Sub::Util::set_subname("constant::$name", sub { @list } );
+				*$full_name = Sub::Util::set_prototype( '', Sub::Util::set_subname("constant::$name", sub { @list } ) );
 			}
 			$flush_mro->{$pkg}++;
 		}
