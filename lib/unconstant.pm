@@ -91,19 +91,19 @@ sub constant_import {
 		if ($name =~ $normal_constant_name and !$forbidden{$name}) {
 			# Everything is okay
 		}
-		
+
 		# Name forced into main, but we're not in main. Fatal.
 		elsif ($forced_into_main{$name} and $pkg ne 'main') {
 			require Carp;
 			Carp::croak("Constant name '$name' is forced into main::");
 		}
-		
+
 		# Starts with double underscore. Fatal.
 		elsif ($name =~ /^__/) {
 			require Carp;
 			Carp::croak("Constant name '$name' begins with '__'");
 		}
-		
+
 		# Maybe the name is tolerable
 		elsif ($name =~ $tolerable) {
 			# Then we'll warn only if you've asked for warnings
@@ -160,7 +160,7 @@ sub constant_import {
 			$flush_mro->{$pkg}++;
 		}
 		else {
-			die 'should never hit this';
+			*$full_name = sub () { };
 		}
 	}
 	# Flush the cache exactly once if we make any direct symbol table changes.
