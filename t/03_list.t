@@ -1,4 +1,4 @@
-use Test::More tests => 6;
+use Test::More tests => 8;
 
 package Foo1 {
 	use constant BAR => (1,2,3,4);
@@ -37,6 +37,20 @@ BEGIN {
 	is( Foo3::baz, 5, 'Constant length set right initially' );
 	*Foo3::BAR = sub { 42 };
 	is( Foo3::baz, 5, 'Constant are inlined again after use of [no constant]' );
+}
+
+package Foo4 {
+	use unconstant;
+	use constant BAR => ();
+	use constant BAZ => undef;
+	sub bar { BAR }
+	sub baz { BAZ }
+}
+
+BEGIN {
+	no warnings 'redefine';
+	is( Foo4::bar, undef, 'Empty list as a constant value is hadled correctly' );
+	is( Foo4::baz, undef, 'undef as a constant value is hadled correctly' );
 }
 
 1;
