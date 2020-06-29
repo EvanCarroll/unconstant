@@ -26,9 +26,9 @@ jobs:
       run: cpanm -n App::cpanminus ExtUtils::MakeMaker
 
     - name: Install dependencies
-       run: |
-         cpanm -n --installdeps .
-         cpanm -n Test::Pod Test::Pod::Coverage
+      run: |
+        cpanm -n --installdeps .
+        cpanm -n Test::Pod Test::Pod::Coverage
 
     - name: Run tests
-       run: prove -l t/ xt/
+      run: prove -l t/ xt/
